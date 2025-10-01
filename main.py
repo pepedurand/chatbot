@@ -12,23 +12,19 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 db_path = os.getenv("SQLITE_DB_PATH")
 
-if not openai_api_key:
-    raise ValueError("A variável de ambiente OPENAI_API_KEY não foi definida. Crie um arquivo .env e adicione-a.")
-if not db_path:
-    raise ValueError("A variável de ambiente SQLITE_DB_PATH não foi definida. Crie um arquivo .env e adicione-a.")
-
 duckdb_tools = DuckDbTools(
     db_path=db_path, 
     read_only=True  
 )
 
-def set_item(session_state, pizza_name: str, size: str, crust: str, quantity: int) -> None:
+def set_item(session_state, pizza_name: str, size: str, crust: str, quantity: int, unit_price: float) -> None:
     """Add a pizza to the list."""
     session_state["pizzas"].append({
         "name": pizza_name,
         "size": size,
         "crust": crust,
-        "quantity": quantity
+        "quantity": quantity,
+        "unit_price": unit_price
     })
 
 def set_user_name(session_state, name: str) -> None:
@@ -62,34 +58,74 @@ def send_data_to_api(session_state) -> str:
 	    "items": session_state.get("pizzas")
     }
     print("Sending order data to API:", order_data)
-    # Aqui você faria a chamada real para a API, por exemplo, com a biblioteca requests.
-    # Ex: requests.post("https://api.pizzaria.com/orders", json=order_data)
-    return "Seu pedido foi enviado com sucesso e chegará quentinho em aproximadamente 40 minutos!"
+
+def get_pizza_prices(pizza_flavour: str) -> list:
+    """Retrieve pizza prices from the database based on the pizza flavour."""
+    query = """
+    SELECT p.sabor AS pizza_name, t.tamanho AS size, b.tipo AS crust, pr.preco AS unit_price
+    FROM pizzas p
+    JOIN precos pr ON p.id = pr.pizza_id
+    JOIN tamanhos t ON pr.tamanho_id = t.id
+    JOIN bordas b ON pr.borda_id = b.id
+    WHERE p.sabor = ?;
+    """
+    results = duckdb_tools.connection.execute(query, [pizza_flavour]).fetchall()
+    prices = []
+    for row in results:
+        prices.append({
+            "pizza_name": row[0],
+            "size": row[1],
+            "crust": row[2],
+            "unit_price": row[3]
+        })
+    return prices
+
+def get_pizza_menu() -> list:
+    """Retrieve the pizza menu from the database."""
+    query = """
+    SELECT p.sabor AS pizza_name, t.tamanho AS size, b.tipo AS crust, pr.preco AS unit_price
+    FROM pizzas p
+    JOIN precos pr ON p.id = pr.pizza_id
+    JOIN tamanhos t ON pr.tamanho_id = t.id
+    JOIN bordas b ON pr.borda_id = b.id;
+    """
+    results = duckdb_tools.connection.sql(query).fetchall()
+    menu = []
+    for row in results:
+        menu.append({
+            "pizza_name": row[0],
+            "size": row[1],
+            "crust": row[2],
+            "unit_price": row[3]
+        })
+    return menu
 
 system_instructions = dedent("""\
     Você é uma atendente virtual da Beauty Pizza, e seu nome é "Bea". Sua personalidade é amigável, prestativa e um pouco divertida.
     Seu objetivo é guiar o cliente de forma natural pelo processo de pedido, coletando todas as informações necessárias.
 
     Siga este fluxo de conversa:
-    1. Cumprimente o cliente e pergunta se ele precisa ver o cardápio ou se já sabe o que quer.
-    2. Pergunte o nome do cliente antes de continuar, guarde essa informação no estado da sessão.
-    3. Continue, se ele quiser ver o cardápio, mostre as opções de pizzas, tamanhos e bordas.
-    4. Quando ele escolher uma pizza, pergunte o tamanho, a borda e a quantidade.
-    5. Pergunte se ele quer adicionar mais alguma pizza.
-    6. Se ele não quiser adicionar mais pizzas, pergunte o endereço de entrega.
-    7. Pergunte o documento para a nota fiscal.
-    8. Nesse momento chame a API de pedidos para enviar o pedido.
+    1. Cumprimente o cliente de forma calorosa, pergunte o nome dele e guarde essa informação no estado da sessão.
+    2. Pergunte se o cliente já sabe o que quer ou se precisa ver o cardápio.
+    3. Caso o cliente queira ver o cardápio use get_pizza_menu() e mostre as opções.
+    4. Caso ele escolha uma pizza, sempre use get_pizza_prices(pizza) e mostra o preço dessa pizza em cada situação.
+    5. Quando ele escolher, o tamanho, a borda e o preço e salve a pizza no estado use set_item().
+    6. Pergunte se ele quer adicionar mais itens ao pedido.
+    7. Se ele disser que não quiser adicionar mais itens no pedido, pergunte o endereço de entrega e salve-o no estado usando set_user_address().
+    8. Pergunte o documento para a nota fiscal e salve-o no estado usando set_user_document().
+    9. Nesse momento chame a API de pedidos para enviar usando send_data_to_api() o pedido e diga que o pedido está confirmado.
     """)
 
+
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o-mini", api_key=openai_api_key),
+    model=OpenAIChat(id="gpt-4o-mini", api_key=openai_api_key, temperature=0.5),
     name="Beauty Pizza Bot",
     tools=[duckdb_tools, set_item, set_user_name, set_user_document, set_user_address, send_data_to_api],
     instructions=system_instructions,
     session_state={"pizzas": [], "user_name": "", "user_document": "", "address": {}},
     db=InMemoryDb(),
     additional_context=dedent("""\
-    Sempre que um cliente falar sobre alguma pizza confira as informacoes no banco de dados.
+    Sempre que um cliente falar sobre alguma pizza confira as informacoes e preco no banco de dados.
     Voce tem acesso a um banco de dados com as seguintes tabelas:
     - pizzas: contem as informacoes de sabores de pizzas
     - tamanhos: contem as informacoes de tamanhos de pizzas
@@ -97,6 +133,7 @@ agent = Agent(
     - precos: contem as informacoes de precos de pizzas, correlacionado pizza, tamanho e borda
     Use queries SQL para obter as informacoes e responder as perguntas dos clientes.
     """),
+
 )
 
 async def main():
@@ -105,7 +142,6 @@ async def main():
         user_input = await asyncio.to_thread(input, "Você: ")
         if user_input.lower() in ["sair", "exit", "quit"]:
             break
-        
         try:
             response = await agent.arun(user_input, session_id=session_id, add_history_to_context=True)  
             session_id = response.session_id
