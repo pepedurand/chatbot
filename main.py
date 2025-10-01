@@ -1,9 +1,7 @@
 import asyncio
 from textwrap import dedent
-from typing import Optional
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools import tool
 from dotenv import load_dotenv
 import os
 from agno.db.in_memory import InMemoryDb
@@ -19,19 +17,30 @@ duckdb_tools = DuckDbTools(
     read_only=True  
 )
 
+def add_item(session_state, pizza_name: str, size: str, crust: str) -> str:
+    """Add a pizza to the list."""
+    session_state["pizzas"].append({
+        "name": pizza_name,
+        "size": size,
+        "crust": crust
+    })
+    return f"The pizza list is now {session_state['pizzas']}"
+
 agent = Agent(
     model=OpenAIChat(id="gpt-4o-mini", api_key=openai_api_key),
     name="Beauty Pizza Bot",
-    tools=[duckdb_tools],
+    tools=[duckdb_tools, add_item],
     instructions="Você é um atendente simpático da pizzaria Beauty Pizza 🍕.",
+    session_state={"pizzas": []},
     db=InMemoryDb(),
     additional_context=dedent("""\
-    You have access to the following tables:
+    Sempre que um cliente falar sobre alguma pizza confira as informacoes no banco de dados.
+    Voce tem acesso a um banco de dados com as seguintes tabelas:
     - pizzas: contem as informacoes de sabores de pizzas
     - tamanhos: contem as informacoes de tamanhos de pizzas
     - bordas: contem as informacoes de tipos de bordas
     - precos: contem as informacoes de precos de pizzas, correlacionado pizza, tamanho e borda
-    Use SQL queries to get the information you need to answer the user's questions.
+    Use queries SQL para obter as informacoes e responder as perguntas dos clientes.
     """),
 )
 
@@ -40,6 +49,7 @@ async def run_agent_on_terminal(message: str):
         response = await agent.arun(message, add_history_to_context=True)  
         agent.session_id = response.session_id
         print("Bot:", response.content)
+        print(agent.session_state)
     except Exception as e:
         import traceback
         traceback.print_exc()
