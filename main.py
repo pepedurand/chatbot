@@ -14,23 +14,10 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 db_path = os.getenv("SQLITE_DB_PATH")
 
-print(f"DEBUG: DB Path: {db_path}")
-print(f"DEBUG: DB Path exists: {os.path.exists(db_path) if db_path else 'DB_PATH is None'}")
-
 duckdb_tools = DuckDbTools(
     db_path=db_path, 
     read_only=True  
 )
-
-try:
-    tables_result = duckdb_tools.run_query("SHOW TABLES")
-    print(f"DEBUG: Tabelas encontradas: {tables_result}")
-except Exception as e:
-    print(f"ERROR: Falha ao conectar/consultar banco: {e}")
-    import traceback
-    traceback.print_exc()
-
-
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o-mini", api_key=openai_api_key),
@@ -46,7 +33,6 @@ agent = Agent(
     - precos: contem as informacoes de precos de pizzas, correlacionado pizza, tamanho e borda
     Use SQL queries to get the information you need to answer the user's questions.
     """),
-
 )
 
 async def run_agent_on_terminal(message: str):
