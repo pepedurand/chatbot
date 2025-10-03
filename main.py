@@ -11,6 +11,11 @@ import requests
 from requests.exceptions import RequestException
 from datetime import date
 
+from agno.knowledge.knowledge import Knowledge
+from agno.knowledge.embedder.openai import OpenAIEmbedder
+from agno.vectordb.lancedb import LanceDb, SearchType
+from pathlib import Path
+from agno.knowledge.reader.markdown_reader import MarkdownReader
 
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -25,6 +30,24 @@ except (TypeError, ValueError):
 duckdb_tools = DuckDbTools(
     db_path=db_path, 
     read_only=True  
+)
+
+KB_DIR = "./.kb/beauty-pizza"
+os.makedirs(KB_DIR, exist_ok=True)
+
+kb = Knowledge(
+    vector_db=LanceDb(
+        table_name="beauty_pizza_kb",
+        uri=KB_DIR,
+        search_type=SearchType.vector,
+        embedder=OpenAIEmbedder(id="text-embedding-3-large", api_key=openai_api_key),
+    ),
+)
+
+
+kb.add_content(
+    path=Path("./treinamento_atendimento.md"),
+    reader=MarkdownReader(),
 )
 
 async def make_request(method: str, endpoint: str, data: Optional[Dict] = None) -> Dict:
@@ -154,21 +177,14 @@ def get_pizza_menu() -> list:
     return menu
 
 system_instructions = dedent("""\
-    Você é uma atendente virtual da Beauty Pizza, e seu nome é "Bea". Sua personalidade é amigável, prestativa e um pouco divertida.
-    Seu objetivo é guiar o cliente de forma natural pelo processo de pedido, coletando todas as informações necessárias.
-
-    Siga este fluxo de conversa:
-    1. Cumprimente o cliente de forma calorosa, pergunte o nome dele e guarde essa informação no estado da sessão.
-    2. Pergunte se o cliente já sabe o que quer ou se precisa ver o cardápio.
-    3. Caso o cliente queira ver o cardápio use get_pizza_menu() e mostre as opções.
-    4. Caso ele escolha uma pizza, sempre use get_pizza_prices(pizza) e mostra o preço dessa pizza em cada situação.
-    5. Quando ele escolher, o tamanho, a borda e o preço e salve a pizza no estado use set_item().
-    6. Pergunte se ele quer adicionar mais itens ao pedido.
-    7. Se ele disser que não quiser adicionar mais itens no pedido, pergunte o endereço de entrega e salve-o no estado usando set_user_address().
-    8. Pergunte o documento para a nota fiscal e salve-o no estado usando set_user_document().
-    9. Nesse momento chame a API de pedidos para enviar usando send_data_to_api() o pedido e diga que o pedido está confirmado.
+    Você é a atendente virtual “Bea” da Beauty Pizza: simpática, objetiva e educada.
+    Siga o Manual/Treinamento do Knowledge para o fluxo e as políticas.
+    Para cardápio e preços NUNCA assuma: sempre use o DB (get_pizza_menu, get_pizza_prices).
+    Monte itens com set_item e confirme resumo + total antes de enviar.
+    Solicite e salve endereço (set_user_address) e documento (set_user_document); ao citar documento, mascare.
+    Ao confirmar, envie com send_data_to_api.
+    Ordem de verdade: DB > Manual/Treinamento.
     """)
-
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o-mini", api_key=openai_api_key, temperature=0.5),
@@ -186,7 +202,8 @@ agent = Agent(
     - precos: contem as informacoes de precos de pizzas, correlacionado pizza, tamanho e borda
     Use queries SQL para obter as informacoes e responder as perguntas dos clientes.
     """),
-
+    # --- RAG plugado no agente (NOVO) ---
+    knowledge=kb,
 )
 
 async def main():
