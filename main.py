@@ -6,16 +6,58 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.db.in_memory import InMemoryDb
 from agno.tools.duckdb import DuckDbTools
+from typing import Dict, Optional
+import requests
+from requests.exceptions import RequestException
 
 
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 db_path = os.getenv("SQLITE_DB_PATH")
+ORDER_API_URL = os.getenv("ORDER_API_URL")
+
+try:
+    ORDERS_API_TIMEOUT = float(os.getenv("ORDERS_API_TIMEOUT", "10"))
+except (TypeError, ValueError):
+    ORDERS_API_TIMEOUT = 10.0
 
 duckdb_tools = DuckDbTools(
     db_path=db_path, 
     read_only=True  
 )
+
+async def make_request(method: str, endpoint: str, data: Optional[Dict] = None) -> Dict:
+    if not ORDER_API_URL:
+        raise RuntimeError("A variável de ambiente ORDER_API_URL não foi configurada.")
+
+    url = f"{ORDER_API_URL.rstrip('/')}/{endpoint.lstrip('/')}"
+
+    def _do_request() -> Dict:
+        try:
+            if method.upper() == 'POST':
+                response = requests.post(
+                    url=url,
+                    json=data,
+                    timeout=ORDERS_API_TIMEOUT
+                )
+            else:
+                response = requests.request(
+                    method=method,
+                    url=url,
+                    json=data,
+                    timeout=ORDERS_API_TIMEOUT
+                )
+            response.raise_for_status()
+
+            content_type = response.headers.get("Content-Type", "").lower()
+            if response.content and "application/json" in content_type:
+                return response.json()
+            return {}
+        except RequestException as exc:
+            raise RequestException(f"Erro na requisição para {url}: {exc}") from exc
+
+    return await asyncio.to_thread(_do_request)
+
 
 def set_item(session_state, pizza_name: str, size: str, crust: str, quantity: int, unit_price: float) -> None:
     """Add a pizza to the list."""
@@ -44,7 +86,7 @@ def set_user_address(session_state, street_name: str, number: int, reference_poi
         "complement": complement
     }
 
-def send_data_to_api(session_state) -> str:
+async def send_data_to_api(session_state) -> str:
     """Send the order data to an external API and return a success message."""
     order_data = {
         "client_name": session_state.get("user_name"),
@@ -55,9 +97,18 @@ def send_data_to_api(session_state) -> str:
             "complement": session_state["address"].get("complement"),
             "reference_point": session_state["address"].get("reference_point")
         },
-	    "items": session_state.get("pizzas")
+        "items": [
+            {
+                "name": f"{item['name']} - {item['size']} - {item['crust']}",
+                "quantity": item["quantity"],
+                "unit_price": item["unit_price"],
+            }
+            for item in session_state.get("pizzas", [])
+        ],
     }
-    print("Sending order data to API:", order_data)
+    await make_request('POST', '/api/orders/', order_data)
+    return "Pedido enviado para confirmação."
+
 
 def get_pizza_prices(pizza_flavour: str) -> list:
     """Retrieve pizza prices from the database based on the pizza flavour."""
