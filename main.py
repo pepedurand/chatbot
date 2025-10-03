@@ -9,6 +9,7 @@ from agno.tools.duckdb import DuckDbTools
 from typing import Dict, Optional
 import requests
 from requests.exceptions import RequestException
+from datetime import date
 
 
 load_dotenv()
@@ -91,6 +92,7 @@ async def send_data_to_api(session_state) -> str:
     order_data = {
         "client_name": session_state.get("user_name"),
         "client_document": session_state.get("user_document"),
+        "delivery_date": date.today().isoformat(),
         "delivery_address": {
             "street_name": session_state["address"].get("street_name"),
             "number": session_state["address"].get("number"),
