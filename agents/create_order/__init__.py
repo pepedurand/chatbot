@@ -1,4 +1,4 @@
 # Arquivo init para permitir importação do agente
-from .agent import agent
+# Import removido para evitar conflitos de event loop
 
-__all__ = ['agent']
+__all__ = []

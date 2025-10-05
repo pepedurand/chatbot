@@ -23,23 +23,17 @@ from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5533/ai"
 
-kb = Knowledge(
-    name="Beauty Pizza Manual",
-    description="Manual de treinamento para atendimento da Beauty Pizza",
-    vector_db=PgVector(
-        table_name="markdown_documents",
-        db_url=db_url,
-        embedder=OpenAIEmbedder(api_key=os.getenv("OPENAI_API_KEY")),
-    ),
-    contents_db=InMemoryDb(),
-)
-
 training_file = Path("./agents/create_order/treinamento_atendimento.md")
 
-kb.add_content(
-    path=training_file,
-    reader=MarkdownReader(),
-)
+# Knowledge base simples - usar apenas o conteúdo do arquivo sem vector DB
+kb = None
+
+# Para evitar problemas com event loop, vamos usar apenas o conteúdo direto do arquivo
+try:
+    # Simular um knowledge base básico usando apenas o conteúdo do arquivo
+    kb = None  # Desabilitado por enquanto
+except Exception as e:
+    kb = None
 
 
 load_dotenv()
@@ -50,9 +44,26 @@ with open(training_file, "r", encoding="utf-8") as f:
 
 system_instructions = dedent(f"""\
     {treinamento_atendimento}
+    
+    INSTRUÇÕES PRINCIPAIS:
     Você é uma atendente virtual da Beauty Pizza, e seu nome é "Bea". Sua personalidade é amigável, prestativa e um pouco divertida.
-    Olhe o seu knowledge base para entender como a empresa funciona e como é o atendimento.
-    Olhe o knowledge para toda ocasião.
+    
+    SIGA RIGOROSAMENTE O FLUXO OFICIAL DE ATENDIMENTO:
+    1. Cumprimento & nome - sempre pergunte o nome e salve com set_user_name()
+    2. Cardápio - ofereça mostrar o cardápio com get_pizza_menu()
+    3. Escolha por sabor - sempre use get_pizza_prices(sabor) ao mencionar sabor
+    4. Montagem do item - confirme tamanho, borda, quantidade e salve com set_item()
+    5. Mais itens? - pergunte se quer adicionar mais
+    6. Endereço e documento - colete com set_user_address() e set_user_document()
+    7. Resumo & confirmação - mostre todos os itens e total antes de confirmar
+    8. Envio - use send_data_to_api() após confirmação
+    
+    REGRAS IMPORTANTES:
+    - SEMPRE consulte o banco de dados para preços com get_pizza_prices() ou get_pizza_menu()
+    - NUNCA invente preços
+    - SEMPRE confirme o resumo completo antes de enviar
+    - Uma pergunta por vez quando necessário
+    - Seja objetiva e clara
     """)
 
 
@@ -76,5 +87,5 @@ agent = Agent(
     IMPORTANTE: Use APENAS as funções get_pizza_menu() e get_pizza_prices(sabor_da_pizza) para consultar informações.
     """),
     knowledge=kb,
-    search_knowledge=True,
+    search_knowledge=False if kb is None else True,
 )
