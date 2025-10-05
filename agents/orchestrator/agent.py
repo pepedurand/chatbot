@@ -8,7 +8,6 @@ from agno.db.in_memory import InMemoryDb
 from agents.tools import call_create_order_agent
 
 def set_active_agent(session_state, agent_name: str) -> None:
-    """Definir qual agente está ativo."""
     session_state["active_agent"] = agent_name
 
 load_dotenv()
@@ -24,8 +23,8 @@ system_instructions = dedent("""\
        - Se não há active_agent definido, proceda com as regras abaixo
     
     2. Para primeira interação:
-       - SEMPRE comece cumprimentando: "Olá! Eu sou a Bea, sua atendente virtual da Beauty Pizza! 😊 Como posso ajudá-lo hoje?"
-    
+       - SEMPRE comece dando as boas vindas a beauty pizzaria e pergunte como pode ajudar.
+
     3. Identifique o que o cliente deseja:
        - Se quer CRIAR/FAZER pedido (palavras: "quero pedir", "fazer pedido", "encomendar", "comprar pizza", "pizza", etc.)
          → Defina session_state["active_agent"] = "create_order"

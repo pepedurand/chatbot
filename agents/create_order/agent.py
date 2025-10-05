@@ -5,6 +5,7 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.db.in_memory import InMemoryDb
 
+
 from agents.tools import (
     get_pizza_menu,
     get_pizza_prices,
@@ -21,71 +22,83 @@ from pathlib import Path
 from agno.knowledge.reader.markdown_reader import MarkdownReader
 from agno.vectordb.pgvector import PgVector
 
-db_url = "postgresql+psycopg://ai:ai@localhost:5533/ai"
-
-training_file = Path("./agents/create_order/treinamento_atendimento.md")
-
-# Knowledge base simples - usar apenas o conteúdo do arquivo sem vector DB
-kb = None
-
-# Para evitar problemas com event loop, vamos usar apenas o conteúdo direto do arquivo
-try:
-    # Simular um knowledge base básico usando apenas o conteúdo do arquivo
-    kb = None  # Desabilitado por enquanto
-except Exception as e:
-    kb = None
-
-
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
-with open(training_file, "r", encoding="utf-8") as f:
-    treinamento_atendimento = f.read()
+db_url = "postgresql+psycopg://ai:ai@localhost:5533/ai"
+training_file = Path("./agents/create_order/treinamento_criar_pedido.md")
 
-system_instructions = dedent(f"""\
-    {treinamento_atendimento}
-    
-    INSTRUÇÕES PRINCIPAIS:
-    Você é uma atendente virtual da Beauty Pizza, e seu nome é "Bea". Sua personalidade é amigável, prestativa e um pouco divertida.
-    
-    SIGA RIGOROSAMENTE O FLUXO OFICIAL DE ATENDIMENTO:
-    1. Cumprimento & nome - sempre pergunte o nome e salve com set_user_name()
-    2. Cardápio - ofereça mostrar o cardápio com get_pizza_menu()
-    3. Escolha por sabor - sempre use get_pizza_prices(sabor) ao mencionar sabor
-    4. Montagem do item - confirme tamanho, borda, quantidade e salve com set_item()
-    5. Mais itens? - pergunte se quer adicionar mais
-    6. Endereço e documento - colete com set_user_address() e set_user_document()
-    7. Resumo & confirmação - mostre todos os itens e total antes de confirmar
-    8. Envio - use send_data_to_api() após confirmação
-    
-    REGRAS IMPORTANTES:
-    - SEMPRE consulte o banco de dados para preços com get_pizza_prices() ou get_pizza_menu()
-    - NUNCA invente preços
-    - SEMPRE confirme o resumo completo antes de enviar
-    - Uma pergunta por vez quando necessário
-    - Seja objetiva e clara
-    """)
+_knowledge_base = None
+_agent = None
 
+async def get_knowledge_base():
+    global _knowledge_base
+    if _knowledge_base is None:
+        _knowledge_base = Knowledge(
+            name="Beauty Pizza Manual",
+            description="Manual de treinamento para atendimento da Beauty Pizza",
+            vector_db=PgVector(
+                table_name="markdown_documents",
+                db_url=db_url,
+                embedder=OpenAIEmbedder(api_key=openai_api_key),
+            ),
+            contents_db=InMemoryDb(),
+        )
+        
+        await _knowledge_base.add_content_async(
+            path=training_file,
+            reader=MarkdownReader(),
+        )
+    
+    return _knowledge_base
 
-agent = Agent(
-    model=OpenAIChat(id="gpt-4o-mini", api_key=openai_api_key, temperature=0.5),
-    name="Beauty Pizza Bot",
-    tools=[get_pizza_menu, get_pizza_prices, set_item, set_user_name, set_user_document, set_user_address, send_data_to_api],
-    instructions=system_instructions,
-    session_state={"pizzas": [], "user_name": "", "user_document": "", "address": {}},
-    db=InMemoryDb(),
-    additional_context=dedent("""\
-    Sempre que um cliente falar sobre alguma pizza, use APENAS as funções fornecidas: get_pizza_menu() e get_pizza_prices(pizza_flavour).
-    NÃO execute queries SQL diretamente. Use sempre as funções disponíveis.
+async def get_agent():
+    global _agent
+    if _agent is None:
+        kb = await get_knowledge_base()
+        
+        with open(training_file, "r", encoding="utf-8") as f:
+            treinamento_atendimento = f.read()
+
+        system_instructions = dedent(f"""\
+            {treinamento_atendimento}
+            Você é uma atendente virtual da Beauty Pizza, e seu nome é "Bea". Sua personalidade é amigável, prestativa e um pouco divertida.
+            Olhe o seu knowledge base para entender como a empresa funciona e como é o atendimento.
+            Olhe o knowledge para toda ocasião.
+            """)
+
+        _agent = Agent(
+            model=OpenAIChat(id="gpt-4o-mini", api_key=openai_api_key, temperature=0.5),
+            name="Beauty Pizza Bot",
+            tools=[get_pizza_menu, get_pizza_prices, set_item, set_user_name, set_user_document, set_user_address, send_data_to_api],
+            instructions=system_instructions,
+            session_state={"pizzas": [], "user_name": "", "user_document": "", "address": {}},
+            db=InMemoryDb(),
+            additional_context=dedent("""\
+            Sempre que um cliente falar sobre alguma pizza, use APENAS as funções fornecidas: get_pizza_menu() e get_pizza_prices(pizza_flavour).
+            NÃO execute queries SQL diretamente. Use sempre as funções disponíveis.
+            
+            Informações sobre o banco de dados (apenas para referência):
+            - pizzas: contém os sabores (campo: sabor)
+            - tamanhos: contém os tamanhos (campo: tamanho)  
+            - bordas: contém os tipos de bordas (campo: tipo)
+            - precos: contém os preços correlacionados
+            
+            IMPORTANTE: Use APENAS as funções get_pizza_menu() e get_pizza_prices(sabor_da_pizza) para consultar informações.
+            """),
+            knowledge=kb,
+            search_knowledge=True,
+        )
     
-    Informações sobre o banco de dados (apenas para referência):
-    - pizzas: contém os sabores (campo: sabor)
-    - tamanhos: contém os tamanhos (campo: tamanho)  
-    - bordas: contém os tipos de bordas (campo: tipo)
-    - precos: contém os preços correlacionados
+    return _agent
+
+class LoadedAgent:
+    def __init__(self):
+        self._agent = None
     
-    IMPORTANTE: Use APENAS as funções get_pizza_menu() e get_pizza_prices(sabor_da_pizza) para consultar informações.
-    """),
-    knowledge=kb,
-    search_knowledge=False if kb is None else True,
-)
+    async def arun(self, *args, **kwargs):
+        if self._agent is None:
+            self._agent = await get_agent()
+        return await self._agent.arun(*args, **kwargs)
+
+agent = LoadedAgent()
