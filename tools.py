@@ -59,6 +59,7 @@ async def make_request(method: str, endpoint: str, data: Optional[Dict] = None) 
 
 def set_item(session_state, pizza_name: str, size: str, crust: str, quantity: int, unit_price: float) -> None:
     """Adicionar uma pizza à lista de itens do pedido."""
+    print("(add pizza ao estado)")
     session_state["pizzas"].append({
         "name": pizza_name,
         "size": size,
@@ -70,6 +71,7 @@ def set_item(session_state, pizza_name: str, size: str, crust: str, quantity: in
 
 def set_user_name(session_state, name: str) -> None:
     """Definir o nome do usuário."""
+    print("(add nome ao estado)")
     session_state["user_name"] = name
 
 
@@ -109,12 +111,15 @@ async def send_data_to_api(session_state) -> str:
             for item in session_state.get("pizzas", [])
         ],
     }
+    print("(enviando pedido a API)")
     await make_request('POST', '/api/orders/', order_data)
+    print("(pedido enviado com sucesso)")
     return "Pedido enviado para confirmação."
 
 
 def get_pizza_prices(pizza_flavour: str) -> list:
     """Recuperar preços de pizza do banco de dados baseado no sabor da pizza com busca por similaridade."""
+    print("(executando query para buscar pizza)")
     flavours_query = "SELECT DISTINCT sabor FROM pizzas"
     available_flavours = [row[0] for row in duckdb_tools.connection.execute(flavours_query).fetchall()]
     
@@ -153,6 +158,7 @@ def get_pizza_prices(pizza_flavour: str) -> list:
 
 def get_pizza_menu() -> list:
     """Recuperar o cardápio completo de pizzas do banco de dados."""
+    print("(executando query para buscar cardapio completo)")
     query = """
     SELECT p.sabor AS pizza_name, t.tamanho AS size, b.tipo AS crust, pr.preco AS unit_price
     FROM pizzas p
