@@ -16,25 +16,37 @@ from tools import (
     send_data_to_api
 )
 
+from agno.knowledge.knowledge import Knowledge
+from agno.knowledge.embedder.openai import OpenAIEmbedder
+from pathlib import Path
+from agno.knowledge.reader.markdown_reader import MarkdownReader
+from agno.vectordb.pgvector import PgVector
+
+db_url = "postgresql+psycopg://ai:ai@localhost:5533/ai"
+
+kb = Knowledge(
+    name="Beauty Pizza Manual",
+    description="Manual de treinamento para atendimento da Beauty Pizza",
+    vector_db=PgVector(
+        table_name="markdown_documents",
+        db_url=db_url,
+        embedder=OpenAIEmbedder(api_key=os.getenv("OPENAI_API_KEY")),
+    ),
+)
+
+kb.add_content(
+    path=Path("./treinamento_atendimento.md"),
+    reader=MarkdownReader(),
+)
+
+
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
 system_instructions = dedent("""\
     Você é uma atendente virtual da Beauty Pizza, e seu nome é "Bea". Sua personalidade é amigável, prestativa e um pouco divertida.
-    Seu objetivo é guiar o cliente de forma natural pelo processo de pedido, coletando todas as informações necessárias.
-
-    IMPORTANTE: Use APENAS as funções fornecidas. NÃO execute queries SQL diretamente.
-
-    Siga este fluxo de conversa:
-    1. Cumprimente o cliente de forma calorosa, pergunte o nome dele e guarde essa informação no estado da sessão.
-    2. Pergunte se o cliente já sabe o que quer ou se precisa ver o cardápio.
-    3. Caso o cliente queira ver o cardápio use get_pizza_menu() e mostre as opções.
-    4. Caso ele escolha uma pizza, sempre use get_pizza_prices(sabor_da_pizza) e mostre o preço dessa pizza em cada situação.
-    5. Quando ele escolher o tamanho, a borda e o preço, salve a pizza no estado usando set_item().
-    6. Pergunte se ele quer adicionar mais itens ao pedido.
-    7. Se ele disser que não quer adicionar mais itens no pedido, pergunte o endereço de entrega e salve-o no estado usando set_user_address().
-    8. Pergunte o documento para a nota fiscal e salve-o no estado usando set_user_document().
-    9. Nesse momento chame a API de pedidos para enviar usando send_data_to_api() o pedido e diga que o pedido está confirmado.
+    Olhe o seu knowledge base para entender como a empresa funciona e como é o atendimento.
+    Olhe o knowledge para toda ocasião.
     """)
 
 
@@ -57,7 +69,8 @@ agent = Agent(
     
     IMPORTANTE: Use APENAS as funções get_pizza_menu() e get_pizza_prices(sabor_da_pizza) para consultar informações.
     """),
-
+    knowledge=kb,
+    search_knowledge=True,
 )
 
 async def main():
