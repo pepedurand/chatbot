@@ -13,7 +13,6 @@ from datetime import date
 
 from agno.knowledge.knowledge import Knowledge
 from agno.knowledge.embedder.openai import OpenAIEmbedder
-from agno.vectordb.lancedb import LanceDb, SearchType
 from pathlib import Path
 from agno.knowledge.reader.markdown_reader import MarkdownReader
 
@@ -32,16 +31,9 @@ duckdb_tools = DuckDbTools(
     read_only=True  
 )
 
-KB_DIR = "./.kb/beauty-pizza"
-os.makedirs(KB_DIR, exist_ok=True)
-
 kb = Knowledge(
-    vector_db=LanceDb(
-        table_name="beauty_pizza_kb",
-        uri=KB_DIR,
-        search_type=SearchType.vector,
-        embedder=OpenAIEmbedder(id="text-embedding-3-large", api_key=openai_api_key),
-    ),
+    name="Beauty Pizza Manual",
+    description="Manual de treinamento para atendimento da Beauty Pizza"
 )
 
 
@@ -202,7 +194,6 @@ agent = Agent(
     - precos: contem as informacoes de precos de pizzas, correlacionado pizza, tamanho e borda
     Use queries SQL para obter as informacoes e responder as perguntas dos clientes.
     """),
-    # --- RAG plugado no agente (NOVO) ---
     knowledge=kb,
 )
 
