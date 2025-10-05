@@ -6,8 +6,6 @@ import requests
 from requests.exceptions import RequestException
 from datetime import date
 from agno.tools.duckdb import DuckDbTools
-import unicodedata
-import re
 from difflib import get_close_matches
 
 load_dotenv()
@@ -19,32 +17,10 @@ try:
 except (TypeError, ValueError):
     ORDERS_API_TIMEOUT = 10.0
 
-# Configurar ferramentas do DuckDB
 duckdb_tools = DuckDbTools(
     db_path=db_path, 
     read_only=True  
 )
-
-
-def normalize_text(text: str) -> str:
-    """Normalizar texto removendo acentos, convertendo para minúsculas e removendo caracteres especiais."""
-    if not text:
-        return ""
-    
-    # Converter para minúsculas
-    text = text.lower()
-    
-    # Remover acentos
-    text = unicodedata.normalize('NFD', text)
-    text = ''.join(char for char in text if unicodedata.category(char) != 'Mn')
-    
-    # Manter apenas letras, números e espaços
-    text = re.sub(r'[^a-z0-9\s]', '', text)
-    
-    # Normalizar espaços
-    text = ' '.join(text.split())
-    
-    return text
 
 
 async def make_request(method: str, endpoint: str, data: Optional[Dict] = None) -> Dict:
@@ -139,11 +115,8 @@ async def send_data_to_api(session_state) -> str:
 
 def get_pizza_prices(pizza_flavour: str) -> list:
     """Recuperar preços de pizza do banco de dados baseado no sabor da pizza com busca por similaridade."""
-    print(f"[DEBUG] Buscando preços para sabor: '{pizza_flavour}'")
-    
     flavours_query = "SELECT DISTINCT sabor FROM pizzas"
     available_flavours = [row[0] for row in duckdb_tools.connection.execute(flavours_query).fetchall()]
-    print(f"[DEBUG] Sabores disponíveis: {available_flavours}")
     
     close_matches = get_close_matches(pizza_flavour.lower(), [f.lower() for f in available_flavours], n=1, cutoff=0.3)
     
@@ -153,8 +126,6 @@ def get_pizza_prices(pizza_flavour: str) -> list:
             if flavour.lower() == close_matches[0]:
                 matched_flavour = flavour
                 break
-        
-        print(f"[DEBUG] Match encontrado: '{pizza_flavour}' -> '{matched_flavour}' (similaridade)")
         
         query = """
         SELECT p.sabor AS pizza_name, t.tamanho AS size, b.tipo AS crust, pr.preco AS unit_price
@@ -167,11 +138,7 @@ def get_pizza_prices(pizza_flavour: str) -> list:
         
         results = duckdb_tools.connection.execute(query, [matched_flavour]).fetchall()
     else:
-        print(f"[DEBUG] Nenhum match similar encontrado para '{pizza_flavour}'")
         results = []
-    
-    print(f"[DEBUG] Resultados finais: {len(results)} registros")
-    print(f"[DEBUG] Dados retornados: {results}")
     
     prices = []
     for row in results:
@@ -181,13 +148,11 @@ def get_pizza_prices(pizza_flavour: str) -> list:
             "crust": row[2],
             "unit_price": row[3]
         })
-    print(f"[DEBUG] Lista de preços formatada: {prices}")
     return prices
 
 
 def get_pizza_menu() -> list:
     """Recuperar o cardápio completo de pizzas do banco de dados."""
-    print("[DEBUG] Buscando cardápio completo...")
     query = """
     SELECT p.sabor AS pizza_name, t.tamanho AS size, b.tipo AS crust, pr.preco AS unit_price
     FROM pizzas p
@@ -195,9 +160,7 @@ def get_pizza_menu() -> list:
     JOIN tamanhos t ON pr.tamanho_id = t.id
     JOIN bordas b ON pr.borda_id = b.id;
     """
-    print(f"[DEBUG] Executando query do menu: {query}")
     results = duckdb_tools.connection.sql(query).fetchall()
-    print(f"[DEBUG] Total de itens no cardápio: {len(results)}")
     menu = []
     for row in results:
         menu.append({
@@ -206,6 +169,4 @@ def get_pizza_menu() -> list:
             "crust": row[2],
             "unit_price": row[3]
         })
-    print(f"[DEBUG] Sabores únicos no cardápio: {set(item['pizza_name'] for item in menu)}")
-    print(f"[DEBUG] Cardápio formatado: {menu[:5]}...")  # Mostra apenas os primeiros 5 para não poluir
     return menu
