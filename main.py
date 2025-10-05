@@ -32,6 +32,7 @@ kb = Knowledge(
         db_url=db_url,
         embedder=OpenAIEmbedder(api_key=os.getenv("OPENAI_API_KEY")),
     ),
+    contents_db=InMemoryDb(),
 )
 
 kb.add_content(
@@ -43,7 +44,11 @@ kb.add_content(
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
-system_instructions = dedent("""\
+with open("treinamento_atendimento.md", "r", encoding="utf-8") as f:
+    treinamento_atendimento = f.read()
+
+system_instructions = dedent(f"""\
+    {treinamento_atendimento}
     Você é uma atendente virtual da Beauty Pizza, e seu nome é "Bea". Sua personalidade é amigável, prestativa e um pouco divertida.
     Olhe o seu knowledge base para entender como a empresa funciona e como é o atendimento.
     Olhe o knowledge para toda ocasião.
