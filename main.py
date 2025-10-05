@@ -36,7 +36,6 @@ kb = Knowledge(
     description="Manual de treinamento para atendimento da Beauty Pizza"
 )
 
-
 kb.add_content(
     path=Path("./treinamento_atendimento.md"),
     reader=MarkdownReader(),
@@ -170,7 +169,7 @@ def get_pizza_menu() -> list:
 
 system_instructions = dedent("""\
     Você é a atendente virtual “Bea” da Beauty Pizza: simpática, objetiva e educada.
-    Siga o Manual/Treinamento do Knowledge para o fluxo e as políticas.
+    Use knowledge para entender o fluxo do atendimento.
     Para cardápio e preços NUNCA assuma: sempre use o DB (get_pizza_menu, get_pizza_prices).
     Monte itens com set_item e confirme resumo + total antes de enviar.
     Solicite e salve endereço (set_user_address) e documento (set_user_document); ao citar documento, mascare.
