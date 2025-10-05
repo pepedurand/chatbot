@@ -1,0 +1,8 @@
+# Dependências principais
+python-dotenv>=1.0.0
+agno>=0.1.0
+requests>=2.31.0
+duckdb>=0.9.0
+
+# Dependências opcionais para desenvolvimento
+asyncio>=3.4.3
