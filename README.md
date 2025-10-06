@@ -4,7 +4,7 @@ Este projeto é uma solução para o **Desafio Técnico MLE-Spec 1 GenAI**, que 
 
 ## Arquitetura
 
-A solução foi construída utilizando uma arquitetura multiagente com o framework [Agno](https://github.com/Agno-python/agno), garantindo uma separação clara de responsabilidades e um fluxo de conversa coeso.
+A solução foi construída utilizando uma arquitetura multiagente com o framework [Agno](https://docs.agno.com/introduction), garantindo uma separação clara de responsabilidades e um fluxo de conversa coeso.
 
 A arquitetura é composta por três agentes principais:
 
@@ -42,11 +42,6 @@ A arquitetura é composta por três agentes principais:
 
 ## Como Executar
 
-### Pré-requisitos
-
-- Python 3.9+
-- Git
-
 ### 1. API e Banco de Dados
 
 O chatbot depende de uma API de pedidos e de um banco de dados com o cardápio. Clone e execute o projeto `candidates-case-order-api` para ter o ambiente necessário.
@@ -63,7 +58,7 @@ Siga as instruções do `README.md` do repositório da API para instalá-la e ex
 Clone este repositório em um diretório separado:
 
 ```bash
-git clone <URL_DO_SEU_REPOSITORIO>
+git clone https://github.com/pepedurand/chatbot
 cd chatbot
 ```
 
