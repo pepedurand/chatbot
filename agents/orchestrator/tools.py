@@ -40,3 +40,26 @@ async def call_update_order_agent(session_state, user_input: str) -> str:
         import traceback
         traceback.print_exc()
         return "Desculpe, estou com problemas técnicos no momento. Tente novamente em alguns instantes."
+
+
+async def call_check_menu_agent(session_state, user_input: str) -> str:
+    """Chamar o agente de consulta de cardápio."""
+    print("🔄 [ORQUESTRADOR] Direcionando para agente de CONSULTA CARDÁPIO")
+    print("Processando solicitação...")
+    
+    try:
+        from ..check_menu.agent import agent
+        
+        session_id = session_state.get("check_menu_session_id")
+        response = await agent.arun(user_input, session_id=session_id, add_history_to_context=True)
+
+        session_state["check_menu_session_id"] = response.session_id
+        
+        print("[AGENTE CONSULTA CARDÁPIO] Resposta processada")
+        return response.content
+        
+    except Exception as e:
+        print(f"❌ [ERRO] Falha ao carregar agente de consulta cardápio: {e}")
+        import traceback
+        traceback.print_exc()
+        return "Desculpe, estou com problemas técnicos no momento. Tente novamente em alguns instantes."
