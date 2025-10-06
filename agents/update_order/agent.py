@@ -23,7 +23,7 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 system_instructions = dedent("""\
     REGRA FUNDAMENTAL: Use APENAS as funções disponíveis para obter dados.
     Para listar itens do pedido, use find_order_items().
-    NUNCA invente informações - use apenas dados vindos das funções.
+    NUNCA invente informações, use apenas dados vindos das funções.
 
     Siga este fluxo de conversa para atualizar pedidos:
     
