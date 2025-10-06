@@ -1,0 +1,23 @@
+import asyncio
+from agents.orchestrator.agent_vectorial import agent
+
+
+async def main():
+    session_id = None
+    print("🚀 [SISTEMA] Iniciando Beauty Pizza Bot (Versão Vectorial)")
+    print("🧠 [SISTEMA] Usando knowledge base vetorial com embeddings")
+    
+    while True:
+        user_input = await asyncio.to_thread(input, "Você: ")
+        try:
+            print("🎯 [ORQUESTRADOR] Processando sua solicitação...")
+            response = await agent.arun(user_input, session_id=session_id, add_history_to_context=True)  
+            session_id = response.session_id
+            print("Bot:", response.content)
+        except Exception as e:
+            print("❌ [ERRO] Ocorreu um erro:")
+            import traceback
+            traceback.print_exc()
+
+if __name__ == "__main__":
+    asyncio.run(main())
