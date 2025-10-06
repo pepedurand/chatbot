@@ -4,7 +4,7 @@ from agents.orchestrator.agent import agent
 
 async def main():
     session_id = None
-    print("🚀 [SISTEMA] Iniciando Beauty Pizza Bot com Agente Orquestrador")
+    print("🚀 [SISTEMA] Iniciando Beauty Pizza Bot")
     
     while True:
         user_input = await asyncio.to_thread(input, "Você: ")
@@ -21,3 +21,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
