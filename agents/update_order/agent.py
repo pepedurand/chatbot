@@ -4,8 +4,10 @@ from textwrap import dedent
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.db.in_memory import InMemoryDb
+from agno.knowledge.embedder.openai import OpenAIEmbedder
+from agno.vectordb.lancedb import LanceDb
+from agno.knowledge.knowledge import Knowledge
 
-from ..common_tools import get_pizza_menu, get_pizza_prices
 from .tools import (
     find_order_by_document,
     set_user_new_address,
@@ -20,72 +22,57 @@ from ..create_order.tools import set_user_document, set_user_name
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
+embedder = OpenAIEmbedder()
+vector_db = LanceDb(
+    table_name="beauty_pizza_menu",
+    uri="/Users/colaborador/ia-case/candidates-case-order-api/vector_db",
+    embedder=embedder
+)
+knowledge = Knowledge(vector_db=vector_db)
+
 system_instructions = dedent("""\
     REGRA FUNDAMENTAL: Use APENAS as funções disponíveis para obter dados.
     Para listar itens do pedido, use find_order_items().
     NUNCA invente informações, use apenas dados vindos das funções.
+    
+    Você tem acesso automático ao knowledge base com todas as informações do cardápio da Beauty Pizza.
+    Quando os clientes perguntarem sobre novas pizzas para adicionar, preços, ingredientes, tamanhos ou bordas, 
+    você automaticamente terá essas informações.
 
     Siga este fluxo de conversa para atualizar pedidos:
     
     1. Cumprimente o cliente de forma calorosa e explique que você pode ajudar a modificar pedidos existentes.
-    2. Pergunte o CPF/documento do cliente para localizar os pedidos e use set_user_document(), salve o documento no estado no campo user_document.
-    3. Use find_order_by_document() para buscar pedidos do cliente e mostre a lista.
-    4. Se houver mais de 1 pedido na lista, peça para o cliente escolher qual deseja modificar.
-    5. Quando o cliente escolher um pedido (seja por ter apenas 1 ou por escolha), SEMPRE use find_order_by_id() com o ID do pedido para salvar no estado.
-    6. Diga que encontrou o pedido, e pergunte o que o cliente deseja fazer:
     
-    7. Para ADICIONAR ITENS:
-       - Pergunte se quer ver o cardápio com get_pizza_menu()
-       - Use get_pizza_prices() para mostrar preços de pizzas específicas
-       - Use set_new_item() para adicionar cada item ao estado (não envie para API ainda)
+    2. Pergunte o documento (CPF) para localizar o pedido e use find_order_by_document().
     
-    8. Para ALTERAR ENDEREÇO:
-       - Peça o novo endereço completo
-       - Use set_user_new_address() para atualizar o estado do endereço (não envie para API ainda)
+    3. Se o pedido for encontrado, mostre os itens atuais usando find_order_items().
     
-    9. Para REMOVER ITEM:
-       - Use find_order_items() para mostrar os itens reais do pedido com IDs corretos
-       - Quando o cliente escolher um item, use o ID EXATO que veio de find_order_items()
-       - Use set_item_to_remove() APENAS com o ID real do item da API
-
-    10. Pergunte se o usuário quer realizar mais alguma alteração
-    11. Se o usuário disser que NÃO quer mais alterações (respostas como "não", "só isso", "não, obrigado", etc.), OBRIGATORIAMENTE chame process_order_updates() para enviar TODAS as mudanças coletadas para a API
-    12. Após process_order_updates(), confirme que as alterações foram aplicadas com sucesso
-
-    IMPORTANTE:
-    - Primeiro colete TODAS as alterações no estado
-    - CRÍTICO: Quando usuário não quer mais alterações, SEMPRE chame process_order_updates()
-    - SEM process_order_updates() as mudanças não são salvas na API!
-    - Sempre seja claro sobre quais modificações são possíveis
-    - Para mostrar itens do pedido, use APENAS find_order_items()
-    - JAMAIS invente IDs ou nomes - use apenas dados das funções disponíveis
+    4. Pergunte o que o cliente deseja modificar:
+       - Adicionar pizza: Responda sobre o cardápio naturalmente (knowledge base será consultado automaticamente)
+       - Remover pizza: Use set_item_to_remove()
+       - Alterar endereço: Use set_user_new_address()
+    
+    5. Para cada modificação, confirme os detalhes com o cliente.
+    
+    6. Finalize usando process_order_updates() para salvar as alterações.
+    
+    REGRAS IMPORTANTES:
+    - NUNCA invente informações sobre pizzas, preços ou ingredientes
+    - Use apenas as informações do seu knowledge base para o cardápio
+    - Para dados do pedido existente, use apenas as funções fornecidas
+    - Seja natural e conversacional ao apresentar opções do cardápio
     """)
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o-mini", api_key=openai_api_key, temperature=0.5),
     name="Beauty Pizza Update Bot",
     tools=[
-        get_pizza_menu, 
-        get_pizza_prices, 
-        find_order_by_document, 
-        set_user_document,
-        set_user_name,
-        set_user_new_address,
-        set_new_item,
-        set_item_to_remove,
-        process_order_updates,
-        find_order_by_id,
-        find_order_items
+        find_order_by_document, set_user_new_address, set_new_item, 
+        set_item_to_remove, process_order_updates, find_order_by_id, 
+        find_order_items, set_user_document, set_user_name
     ],
     instructions=system_instructions,
-    session_state={
-        "user_document": "", 
-        "user_name": "",
-        "new_user_address": {},
-        "new_items": [],
-        "to_delete_items": [],
-        "selected_order_id": None,
-        "orders_list": []
-    },
-    db=InMemoryDb(),
+    session_state={"order_id": None, "items_to_add": [], "items_to_remove": [], "new_address": {}},
+    db=InMemoryDb(),  
+    search_knowledge=True 
 )

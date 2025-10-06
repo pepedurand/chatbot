@@ -109,7 +109,6 @@ async def process_order_updates(session_state) -> str:
     
     results = []
     
-    # Adicionar novos itens
     new_items = session_state.get("new_items", [])
     if new_items:
         try:
@@ -130,7 +129,6 @@ async def process_order_updates(session_state) -> str:
         except Exception as e:
             results.append(f"❌ Erro ao adicionar itens: {str(e)}")
     
-    # Atualizar endereço
     new_address = session_state.get("new_user_address", {})
     if new_address and new_address.get("street_name"):
         try:
@@ -143,7 +141,6 @@ async def process_order_updates(session_state) -> str:
         except Exception as e:
             results.append(f"❌ Erro ao atualizar endereço: {str(e)}")
     
-    # Remover itens
     items_to_remove = session_state.get("to_delete_items", [])
     if items_to_remove:
         for item_id in items_to_remove:

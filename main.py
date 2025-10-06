@@ -1,10 +1,11 @@
 import asyncio
-from agents.orchestrator.agent import agent
+from agents.orchestrator.agent_vectorial import agent
 
 
 async def main():
     session_id = None
-    print("🚀 [SISTEMA] Iniciando Beauty Pizza Bot")
+    print("🚀 [SISTEMA] Iniciando Beauty Pizza Bot (Versão Vectorial)")
+    print("🧠 [SISTEMA] Usando knowledge base vetorial com embeddings")
     
     while True:
         user_input = await asyncio.to_thread(input, "Você: ")
@@ -20,4 +21,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
