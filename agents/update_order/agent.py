@@ -5,12 +5,9 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.db.in_memory import InMemoryDb
 
-from agents.tools import (
-    get_pizza_menu,
-    get_pizza_prices,
+from ..common_tools import get_pizza_menu, get_pizza_prices
+from .tools import (
     find_order_by_document,
-    set_user_document,
-    set_user_name,
     set_user_new_address,
     set_new_item,
     set_item_to_remove,
@@ -18,6 +15,7 @@ from agents.tools import (
     find_order_by_id,
     find_order_items
 )
+from ..create_order.tools import set_user_document, set_user_name
 
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")

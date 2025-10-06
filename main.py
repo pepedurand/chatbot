@@ -13,7 +13,6 @@ async def main():
             response = await agent.arun(user_input, session_id=session_id, add_history_to_context=True)  
             session_id = response.session_id
             print("Bot:", response.content)
-            print("-" * 60)
         except Exception as e:
             print("❌ [ERRO] Ocorreu um erro:")
             import traceback
