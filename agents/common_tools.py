@@ -4,7 +4,6 @@ import asyncio
 from typing import Dict, Optional
 import requests
 from requests.exceptions import RequestException
-from datetime import date
 from agno.tools.duckdb import DuckDbTools
 from difflib import get_close_matches
 
@@ -21,7 +20,6 @@ duckdb_tools = DuckDbTools(
     db_path=db_path, 
     read_only=True  
 )
-
 
 async def make_request(method: str, endpoint: str, data: Optional[Dict] = None) -> Dict:
     """Fazer requisição HTTP para a API de pedidos."""
@@ -45,6 +43,7 @@ async def make_request(method: str, endpoint: str, data: Optional[Dict] = None) 
                     json=data,
                     timeout=ORDERS_API_TIMEOUT
                 )
+            
             response.raise_for_status()
 
             content_type = response.headers.get("Content-Type", "").lower()
@@ -57,69 +56,9 @@ async def make_request(method: str, endpoint: str, data: Optional[Dict] = None) 
     return await asyncio.to_thread(_do_request)
 
 
-def set_item(session_state, pizza_name: str, size: str, crust: str, quantity: int, unit_price: float) -> None:
-    """Adicionar uma pizza à lista de itens do pedido."""
-    print("(add pizza ao estado)")
-    session_state["pizzas"].append({
-        "name": pizza_name,
-        "size": size,
-        "crust": crust,
-        "quantity": quantity,
-        "unit_price": unit_price
-    })
-
-
-def set_user_name(session_state, name: str) -> None:
-    """Definir o nome do usuário."""
-    print("(add nome ao estado)")
-    session_state["user_name"] = name
-
-
-def set_user_document(session_state, document: str) -> None:
-    """Definir o documento do usuário."""
-    session_state["user_document"] = document
-
-
-def set_user_address(session_state, street_name: str, number: int, reference_point: str, complement: str) -> None:
-    """Definir o endereço de entrega do usuário."""
-    session_state["address"] = {
-        "street_name": street_name,
-        "number": number,
-        "reference_point": reference_point,
-        "complement": complement
-    }
-
-
-async def send_data_to_api(session_state) -> str:
-    """Enviar os dados do pedido para a API externa e retornar uma mensagem de sucesso."""
-    order_data = {
-        "client_name": session_state.get("user_name"),
-        "client_document": session_state.get("user_document"),
-        "delivery_date": date.today().isoformat(),
-        "delivery_address": {
-            "street_name": session_state["address"].get("street_name"),
-            "number": session_state["address"].get("number"),
-            "complement": session_state["address"].get("complement"),
-            "reference_point": session_state["address"].get("reference_point")
-        },
-        "items": [
-            {
-                "name": f"{item['name']} - {item['size']} - {item['crust']}",
-                "quantity": item["quantity"],
-                "unit_price": item["unit_price"],
-            }
-            for item in session_state.get("pizzas", [])
-        ],
-    }
-    print("(enviando pedido a API)")
-    await make_request('POST', '/api/orders/', order_data)
-    print("(pedido enviado com sucesso)")
-    return "Pedido enviado para confirmação."
-
-
 def get_pizza_prices(pizza_flavour: str) -> list:
     """Recuperar preços de pizza do banco de dados baseado no sabor da pizza com busca por similaridade."""
-    print("(executando query para buscar pizza)")
+    print("Consultando preços de pizza especifica")
     flavours_query = "SELECT DISTINCT sabor FROM pizzas"
     available_flavours = [row[0] for row in duckdb_tools.connection.execute(flavours_query).fetchall()]
     
@@ -158,7 +97,7 @@ def get_pizza_prices(pizza_flavour: str) -> list:
 
 def get_pizza_menu() -> list:
     """Recuperar o cardápio completo de pizzas do banco de dados."""
-    print("(executando query para buscar cardapio completo)")
+    print("Consultando cardápio completo")
     query = """
     SELECT p.sabor AS pizza_name, t.tamanho AS size, b.tipo AS crust, pr.preco AS unit_price
     FROM pizzas p
