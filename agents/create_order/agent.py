@@ -39,7 +39,8 @@ system_instructions = dedent("""\
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o-mini", api_key=openai_api_key, temperature=0.5),
-    name="Beauty Pizza Bot",
+    name="Beauty Pizza Bot - Criação de Pedidos",
+    role="Cria novos pedidos de pizza para clientes.",
     tools=[get_pizza_menu, get_pizza_prices, set_item, set_user_name, set_user_document, set_user_address, send_data_to_api],
     instructions=system_instructions,
     session_state={"pizzas": [], "user_name": "", "user_document": "", "address": {}},

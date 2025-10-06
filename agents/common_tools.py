@@ -62,15 +62,15 @@ def get_pizza_prices(pizza_flavour: str) -> list:
     flavours_query = "SELECT DISTINCT sabor FROM pizzas"
     available_flavours = [row[0] for row in duckdb_tools.connection.execute(flavours_query).fetchall()]
     
-    close_matches = get_close_matches(pizza_flavour.lower(), [f.lower() for f in available_flavours], n=1, cutoff=0.3)
+    flavours_map = {f.lower(): f for f in available_flavours}
     
+    close_matches = get_close_matches(pizza_flavour.lower(), list(flavours_map.keys()), n=1, cutoff=0.3)
+    
+    matched_flavour = None
     if close_matches:
-        matched_flavour = None
-        for flavour in available_flavours:
-            if flavour.lower() == close_matches[0]:
-                matched_flavour = flavour
-                break
+        matched_flavour = flavours_map.get(close_matches[0])
         
+    if matched_flavour:
         query = """
         SELECT p.sabor AS pizza_name, t.tamanho AS size, b.tipo AS crust, pr.preco AS unit_price
         FROM pizzas p
