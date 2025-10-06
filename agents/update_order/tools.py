@@ -15,7 +15,7 @@ def set_user_new_address(session_state, street_name: str, number: int, complemen
 def set_new_item(session_state, pizza_name: str, size: str, crust: str, quantity: int, unit_price: float) -> None:
     """Adicionar um novo item à lista de itens para adicionar ao pedido."""
     print("Adicionando novo item ao estado")
-    session_state["new_items"].append({
+    session_state["items_to_add"].append({
         "name": pizza_name,
         "size": size,
         "crust": crust,
@@ -109,11 +109,11 @@ async def process_order_updates(session_state) -> str:
     
     results = []
     
-    new_items = session_state.get("new_items", [])
-    if new_items:
+    items_to_add = session_state.get("items_to_add", [])
+    if items_to_add:
         try:
             items_data = []
-            for item in new_items:
+            for item in items_to_add:
                 items_data.append({
                     "name": f"{item['name']} - {item['size']} - {item['crust']}",
                     "quantity": item["quantity"],
@@ -124,7 +124,7 @@ async def process_order_updates(session_state) -> str:
             response = await make_request('PATCH', f'/api/orders/{order_id}/add-items/', data)
             results.append(f"✅ {len(items_data)} item(ns) adicionado(s) com sucesso!")
             
-            session_state["new_items"] = []
+            session_state["items_to_add"] = []
             
         except Exception as e:
             results.append(f"❌ Erro ao adicionar itens: {str(e)}")

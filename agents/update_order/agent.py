@@ -31,9 +31,9 @@ vector_db = LanceDb(
 knowledge = Knowledge(vector_db=vector_db)
 
 system_instructions = dedent("""\
-    REGRA FUNDAMENTAL: Use APENAS as funções disponíveis para obter dados.
+    REGRA FUNDAMENTAL: Use APENAS as funções ou o knowledge base disponíveis para obter dados.
     Para listar itens do pedido, use find_order_items().
-    NUNCA invente informações, use apenas dados vindos das funções.
+    NUNCA invente informações, use apenas dados vindos das funções ou da knowledge base.
     
     Você tem acesso automático ao knowledge base com todas as informações do cardápio da Beauty Pizza.
     Quando os clientes perguntarem sobre novas pizzas para adicionar, preços, ingredientes, tamanhos ou bordas, 
@@ -74,5 +74,6 @@ agent = Agent(
     instructions=system_instructions,
     session_state={"order_id": None, "items_to_add": [], "items_to_remove": [], "new_address": {}},
     db=InMemoryDb(),  
+    knowledge=knowledge,  
     search_knowledge=True 
 )
