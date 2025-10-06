@@ -1,6 +1,5 @@
 import asyncio
-from agents.orchestrator.agent_vectorial import agent
-
+from agents.orchestrator.agent import agent
 
 async def main():
     session_id = None

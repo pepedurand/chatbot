@@ -5,7 +5,7 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.db.in_memory import InMemoryDb
 
-from .tools_vectorial import call_create_order_agent_vectorial, call_update_order_agent_vectorial
+from .tools import call_create_order_agent, call_update_order_agent
 
 def set_active_agent(session_state, agent_name: str) -> None:
     session_state["active_agent"] = agent_name
@@ -54,7 +54,7 @@ def set_active_agent(session_state, agent_name: str) -> None:
 agent = Agent(
     model=OpenAIChat(id="gpt-4o-mini", api_key=openai_api_key, temperature=0.3),
     name="Beauty Pizza Orchestrator Vectorial",
-    tools=[call_create_order_agent_vectorial, call_update_order_agent_vectorial, set_active_agent],
+    tools=[call_create_order_agent, call_update_order_agent, set_active_agent],
     instructions=system_instructions,
     session_state={},
     db=InMemoryDb(),
