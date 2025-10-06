@@ -5,7 +5,7 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.db.in_memory import InMemoryDb
 
-from ..common_tools import get_pizza_menu, get_pizza_prices
+from ..check_menu.tools import get_pizza_menu, get_pizza_prices
 from .tools import (
     set_item,
     set_user_name,
