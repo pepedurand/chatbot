@@ -4,7 +4,6 @@ from ..common_tools import make_request
 
 def set_item(session_state, pizza_name: str, size: str, crust: str, quantity: int, unit_price: float) -> None:
     """Adicionar uma pizza à lista de itens do pedido."""
-    print("Adicionando pizza ao pedido")
     session_state["pizzas"].append({
         "name": pizza_name,
         "size": size,
@@ -16,13 +15,11 @@ def set_item(session_state, pizza_name: str, size: str, crust: str, quantity: in
 
 def set_user_name(session_state, name: str) -> None:
     """Definir o nome do usuário."""
-    print("Salvando nome do cliente")
     session_state["user_name"] = name
 
 
 def set_user_document(session_state, document: str) -> None:
     """Definir o documento do usuário."""
-    print("Salvando documento do cliente")
     session_state["user_document"] = document
 
 

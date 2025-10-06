@@ -1,5 +1,5 @@
 import asyncio
-from agents.orchestrator.agent import agent
+from agents.team import team
 
 
 async def main():
@@ -9,8 +9,8 @@ async def main():
     while True:
         user_input = await asyncio.to_thread(input, "Você: ")
         try:
-            print("🎯 [ORQUESTRADOR] Processando sua solicitação...")
-            response = await agent.arun(user_input, session_id=session_id, add_history_to_context=True)  
+            print("🎯 [EQUIPE] Processando sua solicitação...")
+            response = await team.arun(user_input, session_id=session_id)
             session_id = response.session_id
             print("Bot:", response.content)
         except Exception as e:
