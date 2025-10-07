@@ -40,6 +40,11 @@ async def find_order_by_document(session_state, client_document: str) -> list:
             print(f"Nenhum pedido encontrado para o documento {client_document}.")
             return []
         
+        if len(response) == 1:
+            session_state["selected_order_id"] = response[0]["id"]
+            session_state["selected_order"] = response[0]
+            print(f"Um pedido encontrado e selecionado: #{response[0]['id']}")
+
         session_state["orders_list"] = response
         print(f"{len(response)} pedidos encontrados.")
         return response
