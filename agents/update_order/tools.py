@@ -4,7 +4,7 @@ from ..common_tools import make_request
 def set_user_new_address(session_state, street_name: str, number: int, complement: str, reference_point: str) -> None:
     """Definir o novo endereço para atualização do pedido."""
     print("Atualizando novo endereço no estado")
-    session_state["new_address"] = {
+    session_state["new_user_address"] = {
         "street_name": street_name,
         "number": number,
         "complement": complement,
@@ -15,7 +15,7 @@ def set_user_new_address(session_state, street_name: str, number: int, complemen
 def set_new_item(session_state, pizza_name: str, size: str, crust: str, quantity: int, unit_price: float) -> None:
     """Adicionar um novo item à lista de itens para adicionar ao pedido."""
     print("Adicionando novo item ao estado")
-    session_state["items_to_add"].append({
+    session_state["new_items"].append({
         "name": pizza_name,
         "size": size,
         "crust": crust,
@@ -27,14 +27,12 @@ def set_new_item(session_state, pizza_name: str, size: str, crust: str, quantity
 def set_item_to_remove(session_state, item_id: int) -> None:
     """Adicionar um item à lista de itens para remover do pedido."""
     print("Marcando item para remoção no estado")
-    session_state["items_to_remove"].append(item_id)
+    session_state["to_delete_items"].append(item_id)
 
 
 async def find_order_by_document(session_state, client_document: str) -> list:
     """Buscar pedidos pelo documento do cliente e retorna a lista de pedidos."""
     print("Buscando pedidos por documento")
-    session_state["client_document"] = client_document
-    
     try:
         response = await make_request('GET', f'/api/orders/filter/?client_document={client_document}')
         
@@ -99,11 +97,11 @@ async def process_order_updates(session_state) -> str:
     
     results = []
     
-    items_to_add = session_state.get("items_to_add", [])
-    if items_to_add:
+    new_items = session_state.get("new_items", [])
+    if new_items:
         try:
             items_data = []
-            for item in items_to_add:
+            for item in new_items:
                 items_data.append({
                     "name": f"{item['name']} - {item['size']} - {item['crust']}",
                     "quantity": item["quantity"],
@@ -114,33 +112,33 @@ async def process_order_updates(session_state) -> str:
             response = await make_request('PATCH', f'/api/orders/{order_id}/add-items/', data)
             results.append(f"✅ {len(items_data)} item(ns) adicionado(s) com sucesso!")
             
-            session_state["items_to_add"] = []
+            session_state["new_items"] = []
             
         except Exception as e:
             results.append(f"❌ Erro ao adicionar itens: {str(e)}")
     
-    new_address = session_state.get("new_address", {})
-    if new_address and new_address.get("street_name"):
+    new_user_address = session_state.get("new_user_address", {})
+    if new_user_address and new_user_address.get("street_name"):
         try:
-            data = {"delivery_address": new_address}
+            data = {"delivery_address": new_user_address}
             response = await make_request('PATCH', f'/api/orders/{order_id}/update-address/', data)
             results.append(f"✅ Endereço atualizado com sucesso!")
             
-            session_state["new_address"] = {}
+            session_state["new_user_address"] = {}
             
         except Exception as e:
             results.append(f"❌ Erro ao atualizar endereço: {str(e)}")
     
-    items_to_remove = session_state.get("items_to_remove", [])
-    if items_to_remove:
-        for item_id in items_to_remove:
+    to_delete_items = session_state.get("to_delete_items", [])
+    if to_delete_items:
+        for item_id in to_delete_items:
             try:
                 response = await make_request('DELETE', f'/api/orders/{order_id}/items/{item_id}/')
                 results.append(f"✅ Item {item_id} removido com sucesso!")
             except Exception as e:
                 results.append(f"❌ Erro ao remover item {item_id}: {str(e)}")
         
-        session_state["items_to_remove"] = []
+        session_state["to_delete_items"] = []
     
     if not results:
         return "ℹ️ Nenhuma alteração pendente para processar."

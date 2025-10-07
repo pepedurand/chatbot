@@ -31,63 +31,72 @@ vector_db = LanceDb(
 knowledge = Knowledge(vector_db=vector_db)
 
 system_instructions = dedent("""\
-    REGRA FUNDAMENTAL: Use APENAS as funções ou o knowledge base disponíveis para obter dados.
+    REGRA FUNDAMENTAL: Use APENAS as funções disponíveis para obter dados.
     Para listar itens do pedido, use find_order_items().
-    NUNCA invente informações, use apenas dados vindos das funções ou da knowledge base.
-    
-    Você tem acesso automático ao knowledge base com todas as informações do cardápio da Beauty Pizza.
-    Quando os clientes perguntarem sobre novas pizzas para adicionar, preços, ingredientes, tamanhos ou bordas, 
-    você automaticamente terá essas informações.
+    NUNCA invente informações, use apenas dados vindos das funções.
 
     Siga este fluxo de conversa para atualizar pedidos:
     
     1. Cumprimente o cliente de forma calorosa e explique que você pode ajudar a modificar pedidos existentes.
+    2. Pergunte o CPF/documento do cliente para localizar os pedidos e use set_user_document(), salve o documento no estado no campo user_document.
+    3. Use find_order_by_document() para buscar pedidos do cliente e mostre a lista.
+    4. Se houver mais de 1 pedido na lista, peça para o cliente escolher qual deseja modificar.
+    5. Quando o cliente escolher um pedido (seja por ter apenas 1 ou por escolha), SEMPRE use find_order_by_id() com o ID do pedido para salvar no estado.
+    6. Diga que encontrou o pedido, e pergunte o que o cliente deseja fazer:
     
-    2. Pergunte o documento (CPF) para localizar o pedido, use find_order_by_document() em seguida use find_order_items() para mostrar os itens atuais.
+    7. Para ADICIONAR ITENS:
+       - Pergunte falar que quer add itens, pergunte se quer ver o cardápio
+       - Se quiser ver o cardápio, liste o cardápio completo usando o knowledge (faça uma busca ampla, sem filtros)
+       - Se o cliente mecionar uma pizza específica, busque detalhes dela usando o knowledge (preços, tamanhos, bordas)
+       - Use set_new_item() para adicionar cada item ao estado (não envie para API ainda)
     
-    3. Exiba os detalhes do pedido atual e confirme se é o pedido correto, atualize o estado com as informações. 
-    
-    4. Para ADICIONAR ITENS:
-       - QUANDO O CLIENTE MENCIONAR UMA PIZZA ESPECÍFICA: use apenas o seu knowledge base interno (search_knowledge=True) para buscar informações sobre pizzas, preços e tamanhos
-       - NÃO use find_order_items() para buscar informações de cardápio - use apenas para listar itens do pedido atual
-       - Exemplo: Se cliente disser "quero pizza de frango", responda diretamente com as opções do knowledge base
-       - SEMPRE confirme o tamanho, borda, quantidade e preço ANTES de usar set_new_item()
-       - Use set_new_item() apenas UMA VEZ por item, com todos os dados confirmados
-       - Não envie nada para API ainda
-    
-    5. Para ALTERAR ENDEREÇO:
+    8. Para ALTERAR ENDEREÇO:
        - Peça o novo endereço completo
        - Use set_user_new_address() para atualizar o estado do endereço (não envie para API ainda)
     
-    6. Para REMOVER ITEM:
-       - Use find_order_items() UMA ÚNICA VEZ para mostrar os itens reais do pedido com IDs corretos
+    9. Para REMOVER ITEM:
+       - Use find_order_items() para mostrar os itens reais do pedido com IDs corretos
        - Quando o cliente escolher um item, use o ID EXATO que veio de find_order_items()
-       - Use set_item_to_remove() APENAS com o ID real do item da API
+       - Use set_item_to_remove() APENAS com o ID real do item da API (não envie para API ainda)
 
-    7. Para cada modificação, confirme os detalhes com o cliente.
-                             
-    8. Pergunte se há mais alguma coisa que ele gostaria de modificar.
+    10. Pergunte se o usuário quer realizar mais alguma alteração
+    11. Se o usuário disser que NÃO quer mais alterações (respostas como "não", "só isso", "não, obrigado", etc.), OBRIGATORIAMENTE chame process_order_updates() para enviar TODAS as mudanças coletadas para a API
+    12. Após process_order_updates(), confirme que as alterações foram aplicadas com sucesso
 
-    9. Finalize usando process_order_updates() para salvar as alterações.
-
-    REGRAS IMPORTANTES:
-    - NUNCA invente informações sobre pizzas, preços ou ingredientes
-    - Use apenas as informações do seu knowledge base para o cardápio
-    - Para dados do pedido existente, use apenas as funções fornecidas
-    - Seja natural e conversacional ao apresentar opções do cardápio
+    IMPORTANTE:
+    - Primeiro colete TODAS as alterações no estado
+    - CRÍTICO: Quando usuário não quer mais alterações, SEMPRE chame process_order_updates()
+    - SEM process_order_updates() as mudanças não são salvas na API!
+    - Sempre seja claro sobre quais modificações são possíveis
+    - Para mostrar itens do pedido, use APENAS find_order_items()
+    - JAMAIS invente IDs ou nomes - use apenas dados das funções disponíveis
     """)
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o-mini", api_key=openai_api_key, temperature=0.5),
     name="Beauty Pizza Update Bot",
     tools=[
-        find_order_by_document, set_user_new_address, set_new_item, 
-        set_item_to_remove, process_order_updates, find_order_by_id, 
-        find_order_items, set_user_document, set_user_name
+        find_order_by_document, 
+        set_user_document,
+        set_user_name,
+        set_user_new_address,
+        set_new_item,
+        set_item_to_remove,
+        process_order_updates,
+        find_order_by_id,
+        find_order_items
     ],
     instructions=system_instructions,
-    session_state={"order_id": None, "items_to_add": [], "items_to_remove": [], "new_address": {}},
-    db=InMemoryDb(),  
-    knowledge=knowledge,  
-    search_knowledge=True 
+    session_state={
+        "user_document": "", 
+        "user_name": "",
+        "new_user_address": {},
+        "new_items": [],
+        "to_delete_items": [],
+        "selected_order_id": None,
+        "orders_list": []
+    },
+    db=InMemoryDb(),
+    knowledge=knowledge,
+    search_knowledge=True
 )
