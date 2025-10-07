@@ -30,73 +30,66 @@ def set_item_to_remove(session_state, item_id: int) -> None:
     session_state["to_delete_items"].append(item_id)
 
 
-async def find_order_by_document(session_state, client_document: str) -> str:
-    """Buscar pedidos pelo documento do cliente."""
+async def find_order_by_document(session_state, client_document: str) -> list:
+    """Buscar pedidos pelo documento do cliente e retorna a lista de pedidos."""
     print("Buscando pedidos por documento")
-    session_state["client_document"] = client_document
-    
     try:
         response = await make_request('GET', f'/api/orders/filter/?client_document={client_document}')
         
         if not response or not isinstance(response, list) or len(response) == 0:
-            return f"❌ Nenhum pedido encontrado para o documento {client_document}."
+            print(f"Nenhum pedido encontrado para o documento {client_document}.")
+            return []
         
+        if len(response) == 1:
+            session_state["selected_order_id"] = response[0]["id"]
+            session_state["selected_order"] = response[0]
+            print(f"Um pedido encontrado e selecionado: #{response[0]['id']}")
+
         session_state["orders_list"] = response
-        
-        orders_text = "📋 Pedidos encontrados:\n\n"
-        for i, order in enumerate(response, 1):
-            orders_text += f"{i}. **Pedido #{order.get('id', 'N/A')}**\n"
-            orders_text += f"   • Data de entrega: {order.get('delivery_date', 'N/A')}\n"
-            orders_text += f"   • Total: R$ {order.get('total_value', 0):.2f}\n"
-            orders_text += f"   • Status: {order.get('status', 'N/A')}\n\n"
-        
-        return orders_text + "Qual pedido você gostaria de modificar? (Digite o número)"
+        print(f"{len(response)} pedidos encontrados.")
+        return response
         
     except Exception as e:
         print(f"Erro ao buscar pedidos: {str(e)}")
-        return f"❌ Erro ao buscar pedidos: {str(e)}"
+        return []
 
 
-async def find_order_by_id(session_state, order_id: int) -> str:
-    """Buscar um pedido específico pelo ID."""
+async def find_order_by_id(session_state, order_id: int) -> dict | None:
+    """Buscar um pedido específico pelo ID e retorna os detalhes do pedido."""
     print("Buscando pedido por ID")
-    session_state["selected_order_id"] = order_id
     
     try:
         response = await make_request('GET', f'/api/orders/{order_id}/')
         
         if not response:
-            return f"❌ Nenhum pedido encontrado com o ID {order_id}."
+            print(f"Nenhum pedido encontrado com o ID {order_id}.")
+            return None
         
+        session_state["selected_order_id"] = order_id
         session_state["selected_order"] = response
-        
-        return f"✅ Pedido #{order_id} selecionado com sucesso! O que você gostaria de fazer?\n1. Adicionar mais itens\n2. Alterar endereço de entrega\n3. Remover um item"
+        print(f"Pedido #{order_id} selecionado com sucesso!")
+        return response
         
     except Exception as e:
         print(f"Erro ao buscar pedido: {str(e)}")
-        return f"❌ Erro ao buscar pedido: {str(e)}"
+        return None
 
 
-def find_order_items(session_state) -> str:
-    """Listar os itens do pedido selecionado com IDs reais."""
+def find_order_items(session_state) -> list:
+    """Listar os itens do pedido selecionado."""
     print("Listando itens do pedido selecionado")
     
     selected_order = session_state.get("selected_order")
     if not selected_order:
-        return "❌ Nenhum pedido selecionado. Por favor, selecione um pedido primeiro."
+        print("Nenhum pedido selecionado.")
+        return []
     
     items = selected_order.get("items", [])
     if not items:
-        return "❌ Este pedido não possui itens."
+        print("Este pedido não possui itens.")
+        return []
     
-    items_text = "📋 Itens do seu pedido:\n\n"
-    for item in items:
-        items_text += f"**ID: {item['id']}** - {item['name']}\n"
-        items_text += f"   Quantidade: {item['quantity']}\n"
-        items_text += f"   Preço unitário: R$ {item['unit_price']:.2f}\n\n"
-    
-    items_text += "Por favor, informe o ID do item que deseja remover."
-    return items_text
+    return items
 
 
 async def process_order_updates(session_state) -> str:
@@ -109,7 +102,6 @@ async def process_order_updates(session_state) -> str:
     
     results = []
     
-    # Adicionar novos itens
     new_items = session_state.get("new_items", [])
     if new_items:
         try:
@@ -130,11 +122,10 @@ async def process_order_updates(session_state) -> str:
         except Exception as e:
             results.append(f"❌ Erro ao adicionar itens: {str(e)}")
     
-    # Atualizar endereço
-    new_address = session_state.get("new_user_address", {})
-    if new_address and new_address.get("street_name"):
+    new_user_address = session_state.get("new_user_address", {})
+    if new_user_address and new_user_address.get("street_name"):
         try:
-            data = {"delivery_address": new_address}
+            data = {"delivery_address": new_user_address}
             response = await make_request('PATCH', f'/api/orders/{order_id}/update-address/', data)
             results.append(f"✅ Endereço atualizado com sucesso!")
             
@@ -143,10 +134,9 @@ async def process_order_updates(session_state) -> str:
         except Exception as e:
             results.append(f"❌ Erro ao atualizar endereço: {str(e)}")
     
-    # Remover itens
-    items_to_remove = session_state.get("to_delete_items", [])
-    if items_to_remove:
-        for item_id in items_to_remove:
+    to_delete_items = session_state.get("to_delete_items", [])
+    if to_delete_items:
+        for item_id in to_delete_items:
             try:
                 response = await make_request('DELETE', f'/api/orders/{order_id}/items/{item_id}/')
                 results.append(f"✅ Item {item_id} removido com sucesso!")

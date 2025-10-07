@@ -4,8 +4,10 @@ from textwrap import dedent
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.db.in_memory import InMemoryDb
+from agno.knowledge.embedder.openai import OpenAIEmbedder
+from agno.vectordb.lancedb import LanceDb
+from agno.knowledge.knowledge import Knowledge
 
-from ..common_tools import get_pizza_menu, get_pizza_prices
 from .tools import (
     find_order_by_document,
     set_user_new_address,
@@ -19,6 +21,14 @@ from ..create_order.tools import set_user_document, set_user_name
 
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
+
+embedder = OpenAIEmbedder()
+vector_db = LanceDb(
+    table_name="beauty_pizza_menu",
+    uri="/Users/colaborador/ia-case/candidates-case-order-api/vector_db",
+    embedder=embedder
+)
+knowledge = Knowledge(vector_db=vector_db)
 
 system_instructions = dedent("""\
     REGRA FUNDAMENTAL: Use APENAS as funções disponíveis para obter dados.
@@ -35,8 +45,9 @@ system_instructions = dedent("""\
     6. Diga que encontrou o pedido, e pergunte o que o cliente deseja fazer:
     
     7. Para ADICIONAR ITENS:
-       - Pergunte se quer ver o cardápio com get_pizza_menu()
-       - Use get_pizza_prices() para mostrar preços de pizzas específicas
+       - Pergunte falar que quer add itens, pergunte se quer ver o cardápio
+       - Se quiser ver o cardápio, liste o cardápio completo usando o knowledge (faça uma busca ampla, sem filtros)
+       - Se o cliente mecionar uma pizza específica, busque detalhes dela usando o knowledge (preços, tamanhos, bordas)
        - Use set_new_item() para adicionar cada item ao estado (não envie para API ainda)
     
     8. Para ALTERAR ENDEREÇO:
@@ -46,7 +57,7 @@ system_instructions = dedent("""\
     9. Para REMOVER ITEM:
        - Use find_order_items() para mostrar os itens reais do pedido com IDs corretos
        - Quando o cliente escolher um item, use o ID EXATO que veio de find_order_items()
-       - Use set_item_to_remove() APENAS com o ID real do item da API
+       - Use set_item_to_remove() APENAS com o ID real do item da API (não envie para API ainda)
 
     10. Pergunte se o usuário quer realizar mais alguma alteração
     11. Se o usuário disser que NÃO quer mais alterações (respostas como "não", "só isso", "não, obrigado", etc.), OBRIGATORIAMENTE chame process_order_updates() para enviar TODAS as mudanças coletadas para a API
@@ -65,8 +76,6 @@ agent = Agent(
     model=OpenAIChat(id="gpt-4o-mini", api_key=openai_api_key, temperature=0.5),
     name="Beauty Pizza Update Bot",
     tools=[
-        get_pizza_menu, 
-        get_pizza_prices, 
         find_order_by_document, 
         set_user_document,
         set_user_name,
@@ -88,4 +97,6 @@ agent = Agent(
         "orders_list": []
     },
     db=InMemoryDb(),
+    knowledge=knowledge,
+    search_knowledge=True
 )

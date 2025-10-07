@@ -4,11 +4,11 @@ import asyncio
 from typing import Dict, Optional
 import requests
 from requests.exceptions import RequestException
-from agno.tools.duckdb import DuckDbTools
-from difflib import get_close_matches
+from agno.knowledge.embedder.openai import OpenAIEmbedder
+from agno.vectordb.lancedb import LanceDb
+from agno.knowledge.knowledge import Knowledge
 
 load_dotenv()
-db_path = os.getenv("SQLITE_DB_PATH")
 ORDER_API_URL = os.getenv("ORDER_API_URL")
 
 try:
@@ -16,10 +16,13 @@ try:
 except (TypeError, ValueError):
     ORDERS_API_TIMEOUT = 10.0
 
-duckdb_tools = DuckDbTools(
-    db_path=db_path, 
-    read_only=True  
+embedder = OpenAIEmbedder()
+vector_db = LanceDb(
+    table_name="beauty_pizza_menu",
+    uri="/Users/colaborador/ia-case/candidates-case-order-api/vector_db",
+    embedder=embedder
 )
+knowledge = Knowledge(vector_db=vector_db)
 
 async def make_request(method: str, endpoint: str, data: Optional[Dict] = None) -> Dict:
     """Fazer requisição HTTP para a API de pedidos."""
@@ -56,62 +59,29 @@ async def make_request(method: str, endpoint: str, data: Optional[Dict] = None) 
     return await asyncio.to_thread(_do_request)
 
 
-def get_pizza_prices(pizza_flavour: str) -> list:
-    """Recuperar preços de pizza do banco de dados baseado no sabor da pizza com busca por similaridade."""
-    print("Consultando preços de pizza especifica")
-    flavours_query = "SELECT DISTINCT sabor FROM pizzas"
-    available_flavours = [row[0] for row in duckdb_tools.connection.execute(flavours_query).fetchall()]
+def get_pizza_prices(pizza_flavour: str) -> str:
+    """Recuperar preços de pizza específica usando busca vetorial."""
+    print(f"Consultando preços da pizza: {pizza_flavour}")
     
-    close_matches = get_close_matches(pizza_flavour.lower(), [f.lower() for f in available_flavours], n=1, cutoff=0.3)
+    query = f"preços da pizza {pizza_flavour} todos os tamanhos e bordas"
+    results = knowledge.search(query=query, limit=5)
     
-    if close_matches:
-        matched_flavour = None
-        for flavour in available_flavours:
-            if flavour.lower() == close_matches[0]:
-                matched_flavour = flavour
-                break
-        
-        query = """
-        SELECT p.sabor AS pizza_name, t.tamanho AS size, b.tipo AS crust, pr.preco AS unit_price
-        FROM pizzas p
-        JOIN precos pr ON p.id = pr.pizza_id
-        JOIN tamanhos t ON pr.tamanho_id = t.id
-        JOIN bordas b ON pr.borda_id = b.id
-        WHERE p.sabor = ?;
-        """
-        
-        results = duckdb_tools.connection.execute(query, [matched_flavour]).fetchall()
-    else:
-        results = []
+    if results and hasattr(results, 'responses') and results.responses:
+        response_text = results.responses[0].content if results.responses[0].content else ""
+        return response_text
     
-    prices = []
-    for row in results:
-        prices.append({
-            "pizza_name": row[0],
-            "size": row[1],
-            "crust": row[2],
-            "unit_price": row[3]
-        })
-    return prices
+    return f"Não encontrei informações sobre a pizza {pizza_flavour}. Consulte o cardápio completo."
 
 
-def get_pizza_menu() -> list:
-    """Recuperar o cardápio completo de pizzas do banco de dados."""
+def get_pizza_menu() -> str:
+    """Recuperar o cardápio completo usando busca vetorial."""
     print("Consultando cardápio completo")
-    query = """
-    SELECT p.sabor AS pizza_name, t.tamanho AS size, b.tipo AS crust, pr.preco AS unit_price
-    FROM pizzas p
-    JOIN precos pr ON p.id = pr.pizza_id
-    JOIN tamanhos t ON pr.tamanho_id = t.id
-    JOIN bordas b ON pr.borda_id = b.id;
-    """
-    results = duckdb_tools.connection.sql(query).fetchall()
-    menu = []
-    for row in results:
-        menu.append({
-            "pizza_name": row[0],
-            "size": row[1],
-            "crust": row[2],
-            "unit_price": row[3]
-        })
-    return menu
+    
+    query = "cardápio completo beauty pizza todas as pizzas preços tamanhos bordas"
+    results = knowledge.search(query=query, limit=10)
+    
+    if results and hasattr(results, 'responses') and results.responses:
+        response_text = results.responses[0].content if results.responses[0].content else ""
+        return response_text
+    
+    return "Não foi possível carregar o cardápio no momento."
